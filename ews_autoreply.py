@@ -298,10 +298,10 @@ class AutoReplyEngine(threading.Thread):
         email = self.cfg["email"]
         server = self.cfg["server"]
         auth_type = self.cfg.get("auth_type", "NTLM")
-        password = os.getenv("ATP_MAIL_PASSWORD")
+        password = os.getenv("EWS_MAIL_PASSWORD")
 
         if not password:
-            raise RuntimeError("Falta ATP_MAIL_PASSWORD (variable de entorno).")
+            raise RuntimeError("Falta EWS_MAIL_PASSWORD (variable de entorno).")
 
         creds = Credentials(username=email, password=password)
         config = Configuration(server=server, credentials=creds, auth_type=auth_type)
@@ -485,7 +485,7 @@ class AutoReplyEngine(threading.Thread):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("EWS Auto-Reply (ATP)")
+        self.title("EWS Auto-Reply")
         self.geometry("1100x720")
 
         self.cfg = DEFAULT_CONFIG.copy()
@@ -640,8 +640,8 @@ class App(tk.Tk):
             messagebox.showerror("Error", "start_date inválida. Use YYYY-MM-DD.")
             return
 
-        if not os.getenv("ATP_MAIL_PASSWORD"):
-            messagebox.showerror("Error", "Falta ATP_MAIL_PASSWORD en variables de entorno.")
+        if not os.getenv("EWS_MAIL_PASSWORD"):
+            messagebox.showerror("Error", "Falta EWS_MAIL_PASSWORD en variables de entorno.")
             return
 
         self.cfg = cfg
