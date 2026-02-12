@@ -32,12 +32,12 @@ pip install exchangelib
 
 ## Variable de entorno para la contraseña
 
-El script toma la contraseña desde la variable `ATP_MAIL_PASSWORD`.
+El script toma la contraseña desde la variable `EWS_MAIL_PASSWORD`.
 
 En **Windows** (recomendado):
 
 ```bat
-setx ATP_MAIL_PASSWORD "TU_CLAVE"
+setx EWS_MAIL_PASSWORD "TU_CLAVE"
 ```
 
 > Cerrá y abrí nuevamente la terminal después de `setx` para que tome la variable.
@@ -83,7 +83,7 @@ Hola,
 
 Gracias por tu mensaje. Actualmente estoy de vacaciones y no tendré acceso regular a esta casilla.
 
-Si tu consulta es urgente, por favor contactá a atp.atcontribuyente@chaco.gob.ar.
+Si tu consulta es urgente, por favor contactá a un reemplazo del equipo.
 
 Saludos.
 ```
@@ -96,7 +96,7 @@ Saludos.
 
 ## Notas importantes
 
-- Si falta `ATP_MAIL_PASSWORD`, la app no inicia el motor de respuestas.
+- Si falta `EWS_MAIL_PASSWORD`, la app no inicia el motor de respuestas.
 - Revisá `server`, `email` y `auth_type` según tu infraestructura Exchange.
 - Probalo primero con una casilla de prueba antes de usarlo en producción.
 
