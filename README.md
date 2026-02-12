@@ -83,7 +83,7 @@ Hola,
 
 Gracias por tu mensaje. Actualmente estoy de vacaciones y no tendré acceso regular a esta casilla.
 
-Si tu consulta es urgente, por favor contactá a mesaentradas@chaco.gob.ar.
+Si tu consulta es urgente, por favor contactá a atp.atcontribuyente@chaco.gob.ar.
 
 Saludos.
 ```
