@@ -18,7 +18,7 @@ if hasattr(EWSTimeZone, "timezone"):
     UTC_TZ = EWSTimeZone.timezone("UTC")
 else:
     UTC_TZ = EWSTimeZone("UTC")
-LOCAL_TZ = EWSTimeZone.localzone(
+LOCAL_TZ = EWSTimeZone.localzone()
 
 # =========================
 # Config defaults
