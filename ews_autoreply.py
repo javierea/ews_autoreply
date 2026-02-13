@@ -186,6 +186,22 @@ def db_inc_hour(con, dt: datetime):
 def normalize_email(s: str) -> str:
     return (s or "").strip().lower()
 
+def get_mail_password() -> str:
+    """
+    Read and sanitize the mailbox password from environment.
+
+    Some shells / tooling persist surrounding quotes ("...") in env values.
+    We remove one matching pair of wrapping quotes to avoid auth failures.
+    """
+    raw = os.getenv("EWS_MAIL_PASSWORD")
+    if raw is None:
+        return ""
+
+    pwd = raw.strip()
+    if len(pwd) >= 2 and pwd[0] == pwd[-1] and pwd[0] in {'"', "'"}:
+        pwd = pwd[1:-1].strip()
+    return pwd
+
 def parse_start_date(s: str) -> datetime:
     # local naive date -> treat as local midnight, convert to UTC approx
     # If your server is local tz (-03), this is OK for filtering by date.
@@ -298,7 +314,7 @@ class AutoReplyEngine(threading.Thread):
         email = self.cfg["email"]
         server = self.cfg["server"]
         auth_type = self.cfg.get("auth_type", "NTLM")
-        password = os.getenv("EWS_MAIL_PASSWORD")
+        password = get_mail_password()
 
         if not password:
             raise RuntimeError("Falta EWS_MAIL_PASSWORD (variable de entorno).")
@@ -640,7 +656,7 @@ class App(tk.Tk):
             messagebox.showerror("Error", "start_date inválida. Use YYYY-MM-DD.")
             return
 
-        if not os.getenv("EWS_MAIL_PASSWORD"):
+        if not get_mail_password():
             messagebox.showerror("Error", "Falta EWS_MAIL_PASSWORD en variables de entorno.")
             return
 
