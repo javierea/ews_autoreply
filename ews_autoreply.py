@@ -11,8 +11,11 @@ from datetime import datetime, timedelta, timezone
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from exchangelib import Account, Configuration, Credentials, DELEGATE
+from exchangelib import Account, Configuration, Credentials, DELEGATE, EWSTimeZone, EWSDateTime
 from exchangelib.errors import ErrorNonExistentMailbox
+
+UTC_TZ = EWSTimeZone.timezone("UTC")
+LOCAL_TZ = EWSTimeZone.localzone()
 
 # =========================
 # Config defaults
@@ -203,10 +206,10 @@ def get_mail_password() -> str:
     return pwd
 
 def parse_start_date(s: str) -> datetime:
-    # local naive date -> treat as local midnight, convert to UTC approx
-    # If your server is local tz (-03), this is OK for filtering by date.
+    # local naive date -> local midnight (e.g. Bs.As. -03), then convert to UTC
     dt = datetime.strptime(s.strip(), "%Y-%m-%d")
-    return dt.replace(tzinfo=timezone.utc)
+    local_dt = EWSDateTime.from_datetime(dt.replace(tzinfo=LOCAL_TZ))
+    return local_dt.astimezone(UTC_TZ)
 
 def safe_iso(dt: datetime | None) -> str | None:
     if not dt:
@@ -350,7 +353,7 @@ class AutoReplyEngine(threading.Thread):
 
         # Safety: do not scan infinite history
         lookback_days = int(self.cfg.get("lookback_days", 30))
-        min_dt = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        min_dt = EWSDateTime.now(tz=UTC_TZ) - timedelta(days=lookback_days)
         if start_dt < min_dt:
             start_dt = min_dt
 
@@ -377,7 +380,7 @@ class AutoReplyEngine(threading.Thread):
                     subject = msg.subject or ""
                     received_dt = msg.datetime_received
                     if received_dt is None:
-                        received_dt = datetime.now(timezone.utc)
+                        received_dt = EWSDateTime.now(tz=UTC_TZ)
 
                     msg_id = getattr(msg, "message_id", None) or ""
                     msg_key = msg_id.strip() or message_fingerprint(sender_email, subject, received_dt)
