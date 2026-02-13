@@ -456,8 +456,13 @@ class AutoReplyEngine(threading.Thread):
                         if sender_email:
                             reply_kwargs["to_recipients"] = [sender_email]
 
-                        reply = msg.reply(**reply_kwargs)
-                        reply.send()
+                        # exchangelib's `reply()` may either:
+                        # - send immediately and return a bool/None, or
+                        # - return a message-like object exposing `.send()`.
+                        # Handle both variants to avoid `'bool' object has no attribute 'send'`.
+                        reply_result = msg.reply(**reply_kwargs)
+                        if hasattr(reply_result, "send"):
+                            reply_result.send()
 
                         # Tag + read
                         cats = set(msg.categories or [])
