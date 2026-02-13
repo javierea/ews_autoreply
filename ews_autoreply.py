@@ -14,8 +14,11 @@ from tkinter import ttk, messagebox, filedialog
 from exchangelib import Account, Configuration, Credentials, DELEGATE, EWSTimeZone, EWSDateTime
 from exchangelib.errors import ErrorNonExistentMailbox
 
-UTC_TZ = EWSTimeZone.timezone("UTC")
-LOCAL_TZ = EWSTimeZone.localzone()
+if hasattr(EWSTimeZone, "timezone"):
+    UTC_TZ = EWSTimeZone.timezone("UTC")
+else:
+    UTC_TZ = EWSTimeZone("UTC")
+LOCAL_TZ = EWSTimeZone.localzone(
 
 # =========================
 # Config defaults
