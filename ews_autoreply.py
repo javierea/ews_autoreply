@@ -447,7 +447,16 @@ class AutoReplyEngine(threading.Thread):
 
                     # Reply
                     try:
-                        reply = msg.reply(subject=subject_reply, body=body_reply)
+                        # Some inbound messages can arrive without an `author` field.
+                        # In that case exchangelib requires explicit recipients.
+                        reply_kwargs = {
+                            "subject": subject_reply,
+                            "body": body_reply,
+                        }
+                        if sender_email:
+                            reply_kwargs["to_recipients"] = [sender_email]
+
+                        reply = msg.reply(**reply_kwargs)
                         reply.send()
 
                         # Tag + read
