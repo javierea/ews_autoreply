@@ -41,6 +41,8 @@ setx EWS_MAIL_PASSWORD "TU_CLAVE"
 ```
 
 > Cerrá y abrí nuevamente la terminal después de `setx` para que tome la variable.
+>
+> Si la clave quedó guardada con comillas, la app ahora las limpia automáticamente (por ejemplo `"mi_clave"` o `'mi_clave'`).
 
 ## Ejecución
 
