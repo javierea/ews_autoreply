@@ -6,7 +6,7 @@ import queue
 import sqlite3
 import threading
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -219,7 +219,7 @@ def safe_iso(dt: datetime | None) -> str | None:
         return None
     if dt.tzinfo is None:
         return dt.isoformat(timespec="seconds")
-    return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+    return dt.astimezone(UTC_TZ).isoformat(timespec="seconds")
 
 def message_fingerprint(sender: str, subject: str, received_dt: datetime) -> str:
     # fallback key when message_id not available
@@ -441,10 +441,10 @@ class AutoReplyEngine(threading.Thread):
                     # Anti-loop: if we interacted recently with same sender, skip
                     last = db_last_interaction_with_sender(self.con, normalize_email(sender_email))
                     if last:
-                        now_utc = datetime.now(timezone.utc)
+                        now_utc = datetime.now(UTC_TZ)
                         # last might be naive; normalize
                         if last.tzinfo is None:
-                            last = last.replace(tzinfo=timezone.utc)
+                            last = last.replace(tzinfo=UTC_TZ)
                         if (now_utc - last) < timedelta(minutes=recent_window):
                             row["status"] = "SKIPPED"
                             row["reason"] = f"recent_sender_window<{recent_window}m"
@@ -472,7 +472,7 @@ class AutoReplyEngine(threading.Thread):
 
                         row["status"] = "REPLIED"
                         row["reason"] = "ok"
-                        row["replied_at"] = safe_iso(datetime.now(timezone.utc))
+                        row["replied_at"] = safe_iso(datetime.now(UTC_TZ))
                         db_upsert_message(self.con, row)
                         db_inc_hour(self.con, datetime.now())
 
