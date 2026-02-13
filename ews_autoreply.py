@@ -154,7 +154,7 @@ def db_last_interaction_with_sender(con, sender_email: str):
         SELECT MAX(COALESCE(replied_at, received_at))
         FROM messages
         WHERE sender_email=?
-          AND status IN ('REPLIED','SEEN')
+          AND status='REPLIED'
     """, (sender_email,))
     row = cur.fetchone()
     if not row or not row[0]:
@@ -423,7 +423,8 @@ class AutoReplyEngine(threading.Thread):
                         msg.save(update_fields=["is_read"])
                         continue
 
-                    # Anti-loop: if we interacted recently with same sender, skip
+                    # Anti-loop: only consider recent successful replies to same sender
+                    # (not merely seen messages) so first inbound message is not skipped.
                     last = db_last_interaction_with_sender(self.con, normalize_email(sender_email))
                     if last:
                         now_utc = datetime.now(UTC_TZ)
