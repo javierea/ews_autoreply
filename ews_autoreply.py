@@ -277,6 +277,12 @@ def headers_indicate_autoreply(msg) -> bool:
     except Exception:
         return False
 
+
+def is_stale_changekey_error(exc: Exception) -> bool:
+    """Best-effort detection for stale ChangeKey conflicts across locales."""
+    text = str(exc).lower()
+    return "changekey" in text or "clave de cambio" in text
+
 # =========================
 # Engine thread
 # =========================
@@ -330,6 +336,34 @@ class AutoReplyEngine(threading.Thread):
         now = datetime.now()
         maxh = int(self.cfg.get("max_replies_per_hour", 60))
         return db_hour_count(self.con, now) < maxh
+
+    def mark_message(self, msg, *, is_read: bool = True, add_category: str | None = None):
+        """
+        Mark a message with a best-effort retry in case its ChangeKey is stale.
+        """
+        def _apply_and_save():
+            fields = []
+            if add_category:
+                cats = set(msg.categories or [])
+                cats.add(add_category)
+                msg.categories = list(cats)
+                fields.append("categories")
+            if is_read:
+                msg.is_read = True
+                fields.append("is_read")
+            if fields:
+                msg.save(update_fields=fields)
+
+        try:
+            _apply_and_save()
+            return
+        except Exception as e:
+            if not is_stale_changekey_error(e):
+                raise
+
+        # Retry once after refresh (common when server-side updates changed ChangeKey).
+        msg.refresh()
+        _apply_and_save()
 
     def run(self):
         self.status.running = True
@@ -401,8 +435,7 @@ class AutoReplyEngine(threading.Thread):
                         row["reason"] = why
                         db_upsert_message(self.con, row)
                         self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo={why}")
-                        msg.is_read = True
-                        msg.save(update_fields=["is_read"])
+                        self.mark_message(msg, is_read=True)
                         continue
 
                     if subject_looks_auto(subject) or headers_indicate_autoreply(msg):
@@ -410,8 +443,7 @@ class AutoReplyEngine(threading.Thread):
                         row["reason"] = "auto_reply_detected"
                         db_upsert_message(self.con, row)
                         self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo=auto_reply_detected")
-                        msg.is_read = True
-                        msg.save(update_fields=["is_read"])
+                        self.mark_message(msg, is_read=True)
                         continue
 
                     if db_already_replied(self.con, msg_key):
@@ -419,8 +451,7 @@ class AutoReplyEngine(threading.Thread):
                         row["reason"] = "already_replied_same_msg"
                         db_upsert_message(self.con, row)
                         self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo=already_replied_same_msg")
-                        msg.is_read = True
-                        msg.save(update_fields=["is_read"])
+                        self.mark_message(msg, is_read=True)
                         continue
 
                     # Anti-loop: only consider recent successful replies to same sender
@@ -436,8 +467,7 @@ class AutoReplyEngine(threading.Thread):
                             row["reason"] = f"recent_sender_window<{recent_window}m"
                             db_upsert_message(self.con, row)
                             self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo={row['reason']}")
-                            msg.is_read = True
-                            msg.save(update_fields=["is_read"])
+                            self.mark_message(msg, is_read=True)
                             continue
 
                     if not self.can_send_now():
@@ -465,11 +495,7 @@ class AutoReplyEngine(threading.Thread):
                             reply_result.send()
 
                         # Tag + read
-                        cats = set(msg.categories or [])
-                        cats.add("AUTO-REPLIED")
-                        msg.categories = list(cats)
-                        msg.is_read = True
-                        msg.save(update_fields=["categories", "is_read"])
+                        self.mark_message(msg, is_read=True, add_category="AUTO-REPLIED")
 
                         row["status"] = "REPLIED"
                         row["reason"] = "ok"
@@ -487,8 +513,7 @@ class AutoReplyEngine(threading.Thread):
                         self.log("ERROR", f"Fallo al responder a {sender_email}: {e}")
                         # Mark read to avoid stuck loop on poison message
                         try:
-                            msg.is_read = True
-                            msg.save(update_fields=["is_read"])
+                            self.mark_message(msg, is_read=True)
                         except Exception:
                             pass
 
