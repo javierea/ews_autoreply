@@ -28,8 +28,6 @@ DEFAULT_CONFIG = {
     "email": "tu_casilla@chaco.gob.ar",
     "server": "mail.chaco.gob.ar",        # Ajustar
     "auth_type": "NTLM",                  # NTLM típico en on-prem
-    "internal_domains": ["@chaco.gob.ar"],
-
     "start_date": "2026-02-01",           # yyyy-mm-dd
     "poll_seconds": 20,
     "lookback_days": 30,                  # safety: por si start_date muy viejo
@@ -256,13 +254,6 @@ def subject_looks_auto(subject: str) -> bool:
     s = (subject or "").strip().lower()
     return any(tok in s for tok in AUTO_SUBJECT_TOKENS)
 
-def is_internal(sender_email: str, cfg: dict) -> bool:
-    se = normalize_email(sender_email)
-    for dom in cfg.get("internal_domains", []):
-        dom = normalize_email(dom)
-        if dom and se.endswith(dom):
-            return True
-    return False
 
 def headers_indicate_autoreply(msg) -> bool:
     """
@@ -404,20 +395,12 @@ class AutoReplyEngine(threading.Thread):
                     # Always record that we saw it
                     db_upsert_message(self.con, row)
 
-                    # Skip internal if desired (common case)
-                    if is_internal(sender_email, self.cfg):
-                        row["status"] = "SKIPPED"
-                        row["reason"] = "internal_sender"
-                        db_upsert_message(self.con, row)
-                        msg.is_read = True
-                        msg.save(update_fields=["is_read"])
-                        continue
-
                     blocked, why = sender_is_blocked(sender_email, self.cfg)
                     if blocked:
                         row["status"] = "SKIPPED"
                         row["reason"] = why
                         db_upsert_message(self.con, row)
+                        self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo={why}")
                         msg.is_read = True
                         msg.save(update_fields=["is_read"])
                         continue
@@ -426,6 +409,7 @@ class AutoReplyEngine(threading.Thread):
                         row["status"] = "SKIPPED"
                         row["reason"] = "auto_reply_detected"
                         db_upsert_message(self.con, row)
+                        self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo=auto_reply_detected")
                         msg.is_read = True
                         msg.save(update_fields=["is_read"])
                         continue
@@ -434,6 +418,7 @@ class AutoReplyEngine(threading.Thread):
                         row["status"] = "SKIPPED"
                         row["reason"] = "already_replied_same_msg"
                         db_upsert_message(self.con, row)
+                        self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo=already_replied_same_msg")
                         msg.is_read = True
                         msg.save(update_fields=["is_read"])
                         continue
@@ -449,6 +434,7 @@ class AutoReplyEngine(threading.Thread):
                             row["status"] = "SKIPPED"
                             row["reason"] = f"recent_sender_window<{recent_window}m"
                             db_upsert_message(self.con, row)
+                            self.log("INFO", f"Salteado {sender_email} | {subject[:80]} | motivo={row['reason']}")
                             msg.is_read = True
                             msg.save(update_fields=["is_read"])
                             continue
@@ -513,7 +499,7 @@ class App(tk.Tk):
         self.cfg = DEFAULT_CONFIG.copy()
         self.engine = None
         self.logq = queue.Queue()
-        self.db_path = os.path.abspath("autoreply.sqlite")
+        self.db_path = os.path.abspath("autoreply.db")
         self.con = db_connect(self.db_path)
 
         self._build_ui()
