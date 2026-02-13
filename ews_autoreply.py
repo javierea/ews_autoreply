@@ -511,8 +511,16 @@ class App(tk.Tk):
         frm = ttk.Frame(self, padding=10)
         frm.pack(fill="both", expand=True)
 
+        tabs = ttk.Notebook(frm)
+        tabs.pack(fill="both", expand=True)
+
+        main_tab = ttk.Frame(tabs, padding=8)
+        history_tab = ttk.Frame(tabs, padding=8)
+        tabs.add(main_tab, text="Configuración")
+        tabs.add(history_tab, text="Historial de correos")
+
         # Top config
-        cfg_box = ttk.LabelFrame(frm, text="Configuración", padding=10)
+        cfg_box = ttk.LabelFrame(main_tab, text="Configuración", padding=10)
         cfg_box.pack(fill="x")
 
         self.var_email = tk.StringVar(value=self.cfg["email"])
@@ -544,7 +552,7 @@ class App(tk.Tk):
         ttk.Spinbox(cfg_box, from_=1, to=500, textvariable=self.var_maxh, width=8).grid(row=r, column=1, sticky="w", padx=6)
 
         # Exclusions and message
-        mid = ttk.Frame(frm)
+        mid = ttk.Frame(main_tab)
         mid.pack(fill="both", expand=False, pady=10)
 
         left = ttk.LabelFrame(mid, text="Exclusiones", padding=10)
@@ -570,7 +578,7 @@ class App(tk.Tk):
         self.txt_body.pack(fill="both", expand=True, pady=6)
 
         # Controls
-        ctrl = ttk.Frame(frm)
+        ctrl = ttk.Frame(main_tab)
         ctrl.pack(fill="x", pady=6)
 
         self.btn_start = ttk.Button(ctrl, text="Iniciar", command=self.start_engine)
@@ -586,21 +594,47 @@ class App(tk.Tk):
         ttk.Label(ctrl, text=f"DB: {self.db_path}").pack(side="right")
 
         # Logs
-        log_box = ttk.LabelFrame(frm, text="Logs", padding=10)
+        log_box = ttk.LabelFrame(main_tab, text="Logs", padding=10)
         log_box.pack(fill="both", expand=True, pady=(10, 0))
 
         self.txt_logs = tk.Text(log_box, height=8, state="disabled")
         self.txt_logs.pack(fill="both", expand=False)
 
-        # Table
-        table_box = ttk.LabelFrame(frm, text="Últimos eventos (SQLite)", padding=10)
-        table_box.pack(fill="both", expand=True, pady=(10, 0))
+        # History tab
+        hist_header = ttk.Frame(history_tab)
+        hist_header.pack(fill="x", pady=(0, 6))
+        ttk.Label(
+            hist_header,
+            text="Correos recibidos y acción tomada (respondido / ignorado / error).",
+        ).pack(side="left", anchor="w")
+        ttk.Button(hist_header, text="Actualizar", command=lambda: self._refresh_table(schedule_next=False)).pack(side="right")
 
-        cols = ("received_at", "sender_email", "subject", "status", "reason", "replied_at")
-        self.tree = ttk.Treeview(table_box, columns=cols, show="headings", height=10)
+        table_box = ttk.LabelFrame(history_tab, text="Últimos eventos (SQLite)", padding=10)
+        table_box.pack(fill="both", expand=True)
+
+        cols = ("received_at", "sender_email", "subject", "action", "status", "reason", "replied_at")
+        self.tree = ttk.Treeview(table_box, columns=cols, show="headings", height=18)
+        headings = {
+            "received_at": "Recibido",
+            "sender_email": "Remitente",
+            "subject": "Asunto",
+            "action": "Acción tomada",
+            "status": "Estado",
+            "reason": "Motivo interno",
+            "replied_at": "Respondido",
+        }
+        widths = {
+            "received_at": 155,
+            "sender_email": 210,
+            "subject": 340,
+            "action": 240,
+            "status": 90,
+            "reason": 220,
+            "replied_at": 155,
+        }
         for c in cols:
-            self.tree.heading(c, text=c)
-            self.tree.column(c, width=160 if c != "subject" else 380, anchor="w")
+            self.tree.heading(c, text=headings[c])
+            self.tree.column(c, width=widths[c], anchor="w")
         self.tree.pack(fill="both", expand=True)
 
         self._apply_cfg_to_text()
@@ -686,7 +720,7 @@ class App(tk.Tk):
             pass
         self.after(250, self._drain_logs)
 
-    def _refresh_table(self):
+    def _refresh_table(self, schedule_next: bool = True):
         cur = self.con.cursor()
         cur.execute("""
             SELECT received_at, sender_email, subject, status, reason, replied_at
@@ -700,9 +734,36 @@ class App(tk.Tk):
         for it in self.tree.get_children():
             self.tree.delete(it)
         for r in rows:
-            self.tree.insert("", "end", values=r)
+            action = self._human_action(status=r[3], reason=r[4])
+            self.tree.insert("", "end", values=(r[0], r[1], r[2], action, r[3], r[4], r[5]))
 
-        self.after(2000, self._refresh_table)
+        if schedule_next:
+            self.after(2000, self._refresh_table)
+
+    @staticmethod
+    def _human_action(status: str, reason: str) -> str:
+        reason = reason or ""
+        if status == "REPLIED":
+            return "Contestado automáticamente"
+        if status == "ERROR":
+            return "Error al procesar o responder"
+        if status == "SEEN":
+            return "Visto, pendiente de decisión"
+        if status == "SKIPPED":
+            if reason in {"sender_excluded_email", "sender_excluded_domain"}:
+                return "Ignorado por lista de exclusión"
+            if reason == "sender_auto_token":
+                return "Ignorado (remitente automático)"
+            if reason == "auto_reply_detected":
+                return "Ignorado (respuesta automática detectada)"
+            if reason == "already_replied_same_msg":
+                return "Ignorado (mensaje ya respondido)"
+            if reason.startswith("recent_sender_window"):
+                return "Ignorado por ventana anti-loop"
+            if reason == "sender_empty":
+                return "Ignorado (sin remitente)"
+            return "Ignorado"
+        return "Sin clasificar"
 
     def save_config(self):
         cfg = self._collect_cfg_from_ui()
