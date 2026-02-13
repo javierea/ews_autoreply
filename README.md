@@ -12,6 +12,7 @@ Script en Python con **interfaz mínima (Tkinter)** para responder correos autom
   - evita responder más de una vez al mismo mensaje,
   - limita respuestas por hora,
   - aplica ventana de tiempo por remitente.
+- Responde tanto remitentes internos como externos; solo saltea exclusiones configuradas y detección de autorespuestas.
 - Guarda trazabilidad en SQLite (`autoreply.db`) y muestra logs en pantalla.
 - Permite guardar/cargar configuración en JSON.
 
